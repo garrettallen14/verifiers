@@ -195,21 +195,38 @@ class PRBORubric(Rubric):
             
             # Judge the attack attempt with error handling
             try:
+                # Ensure attack_attempt and behavior are strings (not None)
+                safe_attack_attempt = str(attack_attempt) if attack_attempt is not None else "[No attack attempt]"
+                safe_behavior = str(behavior) if behavior is not None else "[No behavior specified]"
+                
                 attack_attempt_score_raw = await self._call_model(
                     model_config=self.config.judge,
-                    prompt=PROMPT_JUDGE_TEMPLATE.format(prompt=attack_attempt, behavior=behavior),
+                    prompt=PROMPT_JUDGE_TEMPLATE.format(prompt=safe_attack_attempt, behavior=safe_behavior),
                     max_tokens=500,
                     temperature=0.1,
                 )
-                parsed_attack = self.score_parser.parse(attack_attempt_score_raw.choices[0].message.content)
-                attack_attempt_score = int(parsed_attack.score) if hasattr(parsed_attack, 'score') else 0
-            except (ValueError, AttributeError, TypeError) as e:
+                
+                # Handle None response from API
+                if attack_attempt_score_raw is None or attack_attempt_score_raw.choices is None:
+                    self.logger.warning("Judge API returned None response")
+                    attack_attempt_score = 0
+                else:
+                    content = attack_attempt_score_raw.choices[0].message.content
+                    if content is None:
+                        self.logger.warning("Judge API returned None content")
+                        attack_attempt_score = 0
+                    else:
+                        parsed_attack = self.score_parser.parse(content)
+                        attack_attempt_score = int(parsed_attack.score) if hasattr(parsed_attack, 'score') else 0
+            except (ValueError, AttributeError, TypeError, Exception) as e:
                 self.logger.warning(f"Failed to parse attack attempt score: {e}")
                 attack_attempt_score = 0  # Default to neutral score
             
             # Get responses with timeout/error handling
             try:
-                steered_attack_attempt = STEERING_TEMPLATE.format(attack_attempt=attack_attempt)
+                # Ensure attack_attempt is string (not None) for template formatting
+                safe_attack_attempt = str(attack_attempt) if attack_attempt is not None else "[No attack attempt]"
+                steered_attack_attempt = STEERING_TEMPLATE.format(attack_attempt=safe_attack_attempt)
                 unsteered_response, steered_response = await asyncio.gather(
                     self._call_model(
                         model_config=self.config.target,
