@@ -47,9 +47,9 @@ target_model_config = ModelConfig(
 )
 
 judge_model_config = ModelConfig(
-    model_name="openai/gpt-oss-20b", 
-    base_url="http://localhost:8000/v1",  # Same endpoint for simplicity
-    api_key="EMPTY"
+    model_name="openai/gpt-4.1-mini", 
+    base_url="https://openrouter.ai/api/v1",  # Same endpoint for simplicity
+    api_key=""
 )
 
 print("🚀 Initializing PRBO Behavior Elicitation Environment...")
@@ -74,14 +74,19 @@ model, tokenizer = vf.get_model_and_tokenizer(model_name)
 print("⚙️ Setting up GRPO trainer...")
 args = vf.grpo_defaults(run_name="prbo-no-vllm")
 
-# 2-GPU optimized settings
-args.beta = 0.0  # No reference model  
+# GRPO training settings for PRBO  
+args.beta = 0.1  # Small but non-zero reference model coefficient
 args.max_steps = 5
-args.per_device_train_batch_size = 1
-args.gradient_accumulation_steps = 2
-args.num_generations = 2
-args.learning_rate = 2e-6
+args.per_device_train_batch_size = 2
+args.gradient_accumulation_steps = 4  # Accumulate more gradients
+args.num_generations = 6  # More samples for comparison
+args.learning_rate = 1e-5  # Larger learning rate
 args.max_tokens = 64
+args.warmup_steps = 1  # Add warmup
+args.logging_steps = 1  # Log every step
+# Disable vLLM weight syncing temporarily to test training
+args.num_batches_ahead = 0  # Synchronous generation to avoid vLLM sync issues
+args.max_train_steps = 10
 
 trainer = vf.GRPOTrainer(
     env=vf_env,

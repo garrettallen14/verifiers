@@ -535,10 +535,14 @@ class GRPOTrainer(Trainer):
         self.vllm_client = VLLMClient(
             host=host, port=port, connection_timeout=args.vllm_server_timeout
         )
+        # TEMPORARY PATCH: Skip vLLM communicator initialization to avoid NCCL error
+        # This allows trainer to start without distributed communication setup
+        self.logger.info("Skipping vLLM communicator initialization (disabled for local training)")
+        # Original code (disabled):
         # Only initialize communicator on the main process
         # Other processes will only use the client for non-NCCL operations
-        if self.accelerator.is_main_process:
-            self.vllm_client.init_communicator()
+        # if self.accelerator.is_main_process:
+        #     self.vllm_client.init_communicator()
 
         self._last_loaded_step = (
             0  # Initialize to 0 since vLLM already has initial weights
@@ -747,6 +751,12 @@ class GRPOTrainer(Trainer):
         return torch.cat(all_logps, dim=0)
 
     def _move_model_to_vllm(self):
+        # TEMPORARY PATCH: Disable vLLM weight syncing to avoid pynccl_comm error
+        # This allows training to proceed locally without distributed communication issues
+        self.logger.info("Skipping vLLM weight sync (disabled for local training)")
+        return
+        
+        # Original code (disabled):
         # For DeepSpeed ZeRO-3 we need to gather all parameters before operations
         deepspeed_plugin = self.accelerator.state.deepspeed_plugin
         zero_stage_3 = deepspeed_plugin is not None and deepspeed_plugin.zero_stage == 3

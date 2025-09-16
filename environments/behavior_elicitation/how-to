@@ -1,0 +1,20 @@
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+
+git clone https://github.com/garrettallen14/verifiers.git
+cd verifiers
+git checkout test
+
+uv venv --python 3.11
+source .venv/bin/activate
+
+# Install your fork in development mode
+uv pip install -e ".[all]"
+uv pip install flash-attn --no-build-isolation
+
+CUDA_VISIBLE_DEVICES=0 vf-vllm --model openai/gpt-oss-20b \
+    --port 8000 \
+    --enforce-eager \
+    --disable-log-requests \
+    --max-model-len 4096 \
+    --gpu-memory-utilization 0.9
