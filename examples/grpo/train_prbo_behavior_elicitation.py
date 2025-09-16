@@ -31,29 +31,32 @@ import sys
 import os
 
 # Add the behavior elicitation environment to the path
-sys.path.append('/home/gary/Documents/GitHub/grpo-practice')
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../environments/behavior_elicitation'))
 
-from verifiers.environments.behavior_elicitation.behavior_elicitation import ModelConfig, load_environment
+from behavior_elicitation import ModelConfig, load_environment
 
-# Model configuration
-model_name = "gpt-oss-20b"  # Model to train with GRPO
+# Model configuration for GRPO training
+model_name = "willcb/Qwen3-8B"  # Model to train with GRPO
 
-# vLLM endpoint configurations
+# vLLM endpoint configurations (for PRBO environment)
+# Using gpt-oss-20b as both judge and target model via vLLM
 target_model_config = ModelConfig(
     model_name="gpt-oss-20b",
-    base_url="http://localhost:8000/v1",  # Target model endpoint
+    base_url="http://localhost:8000/v1",  # gpt-oss-20b vLLM server
     api_key="EMPTY"
 )
 
 judge_model_config = ModelConfig(
     model_name="gpt-oss-20b", 
-    base_url="http://localhost:8000/v1",  # Judge model endpoint (can be same as target)
+    base_url="http://localhost:8000/v1",  # Same endpoint for simplicity
     api_key="EMPTY"
 )
 
 print("🚀 Initializing PRBO Behavior Elicitation Environment...")
-print(f"Target model: {target_model_config.model_name} at {target_model_config.base_url}")
-print(f"Judge model: {judge_model_config.model_name} at {judge_model_config.base_url}")
+print(f"Training model: {model_name} (GRPO training target)")
+print(f"Target model: {target_model_config.model_name} at {target_model_config.base_url} (PRBO environment)")
+print(f"Judge model: {judge_model_config.model_name} at {judge_model_config.base_url} (PRBO environment)")
+print("⚠️  Note: Qwen3 models may have chat template issues. Consider using Qwen2.5 if problems occur.")
 
 # Load the PRBO environment
 vf_env = load_environment(
@@ -75,20 +78,24 @@ trainer = vf.GRPOTrainer(
     model=model,
     processing_class=tokenizer,
     args=vf.grpo_defaults(
-        run_name="prbo-behavior-elicitation",
-        # PRBO-specific hyperparameters
-        learning_rate=5e-6,  # Lower LR for behavior elicitation
-        per_device_train_batch_size=2,  # Smaller batch size due to complex rewards
-        gradient_accumulation_steps=8,  # Maintain effective batch size
-        num_train_epochs=3,  # Multiple epochs for behavior learning
-        warmup_steps=50,  # Warm up for stability
+        run_name="prbo-qwen3-4b-behavior-elicitation",
+        # PRBO-specific hyperparameters for Qwen3-4B
+        learning_rate=2e-6,  # Conservative LR for smaller model
+        per_device_train_batch_size=4,  # Larger batch for 4B model
+        gradient_accumulation_steps=4,  # Maintain effective batch size
+        num_generations=16,  # Group size for GRPO
+        max_steps=500,  # Total training steps
+        warmup_steps=20,  # Warm up for stability
         logging_steps=5,  # Frequent logging for monitoring
-        save_steps=100,  # Save checkpoints regularly
-        eval_steps=50,  # Regular evaluation
+        save_steps=50,  # Save checkpoints regularly
+        eval_steps=25,  # Regular evaluation
         # GRPO-specific
-        temperature=0.7,  # Balanced exploration
-        kl_coeff=0.1,  # KL penalty coefficient
-        max_new_tokens=64,  # Match PRBO response length
+        temperature=0.8,  # Higher exploration for attack generation
+        beta=0.001,  # KL penalty (conservative)
+        max_tokens=64,  # Match PRBO response length
+        # Stability settings for Qwen3
+        max_grad_norm=0.01,  # Aggressive clipping
+        gradient_checkpointing=True,  # Memory efficiency
     ),
 )
 
