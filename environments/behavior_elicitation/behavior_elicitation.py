@@ -247,12 +247,28 @@ class PRBORubric(Rubric):
             
             # Parse judge scores with error handling
             try:
+                # Ensure all template parameters are strings (not None)
+                safe_behavior = str(behavior) if behavior is not None else "[No behavior specified]"
+                
+                # Safe extraction of response content
+                safe_unsteered_response = "[No response]"
+                if (unsteered_response and hasattr(unsteered_response, 'choices') and 
+                    unsteered_response.choices and hasattr(unsteered_response.choices[0], 'message') and
+                    unsteered_response.choices[0].message.content is not None):
+                    safe_unsteered_response = str(unsteered_response.choices[0].message.content)
+                
+                safe_steered_response = "[No response]"
+                if (steered_response and hasattr(steered_response, 'choices') and 
+                    steered_response.choices and hasattr(steered_response.choices[0], 'message') and
+                    steered_response.choices[0].message.content is not None):
+                    safe_steered_response = str(steered_response.choices[0].message.content)
+                
                 unsteered_score_raw, steered_score_raw = await asyncio.gather(
                     self._call_model(
                         model_config=self.config.judge,
                         prompt=RESPONSE_JUDGE_TEMPLATE.format(
-                            response=unsteered_response.choices[0].message.content, 
-                            behavior=behavior
+                            response=safe_unsteered_response, 
+                            behavior=safe_behavior
                         ),
                         max_tokens=500,
                         temperature=0.1,
@@ -260,8 +276,8 @@ class PRBORubric(Rubric):
                     self._call_model(
                         model_config=self.config.judge,
                         prompt=RESPONSE_JUDGE_TEMPLATE.format(
-                            response=steered_response.choices[0].message.content, 
-                            behavior=behavior
+                            response=safe_steered_response, 
+                            behavior=safe_behavior
                         ),
                         max_tokens=500,
                         temperature=0.1,
