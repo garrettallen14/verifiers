@@ -35,21 +35,21 @@ sys.path.append('/workspace/verifiers/environments/behavior_elicitation')
 
 from behavior_elicitation import ModelConfig, load_environment
 
-# Model configuration for GRPO training
-model_name = "willcb/Qwen3-8B"  # Model to train with GRPO
+# Model configuration for GRPO training (memory-optimized)
+model_name = "willcb/Qwen3-1.7B"  # Smaller model for GRPO training (fits in memory)
 
 # vLLM endpoint configurations (for PRBO environment)
 # Using openai/gpt-oss-20b as both judge and target model via vLLM
 target_model_config = ModelConfig(
     model_name="openai/gpt-oss-20b",
-    base_url="http://localhost:8000/v1",  # gpt-oss-20b vLLM server
+    base_url="https://5udqige5y48ttq-8000.proxy.runpod.net/v1",  # gpt-oss-20b vLLM server
     api_key="EMPTY"
 )
 
 judge_model_config = ModelConfig(
     model_name="openai/gpt-4.1-mini", 
-    base_url="https://openrouter.ai/api/v1",  # Same endpoint for simplicity
-    api_key=""
+    base_url="https://openrouter.ai/api/v1",  # OpenRouter API
+    api_key="sk-or-v1-..."  # YOU NEED TO ADD YOUR REAL API KEY HERE!
 )
 
 print("🚀 Initializing PRBO Behavior Elicitation Environment...")
@@ -74,19 +74,20 @@ model, tokenizer = vf.get_model_and_tokenizer(model_name)
 print("⚙️ Setting up GRPO trainer...")
 args = vf.grpo_defaults(run_name="prbo-no-vllm")
 
-# GRPO training settings for PRBO  
-args.beta = 0.1  # Small but non-zero reference model coefficient
-args.max_steps = 5
-args.per_device_train_batch_size = 2
-args.gradient_accumulation_steps = 4  # Accumulate more gradients
-args.num_generations = 6  # More samples for comparison
-args.learning_rate = 1e-5  # Larger learning rate
+# GRPO training settings for PRBO (multi-epoch training for strong learning)
+args.beta = 0.1              # Higher beta for more stability  
+args.num_train_epochs = 5  # Train for 5 full epochs (better than max_steps)
+args.per_device_train_batch_size = 1  # Keep memory-optimized
+args.gradient_accumulation_steps = 4  # Reduce to match working config
+args.num_generations = 4  # Back to working config to avoid tensor mismatch
+args.learning_rate = 1e-5    # Lower LR to reduce explosions
 args.max_tokens = 64
-args.warmup_steps = 1  # Add warmup
-args.logging_steps = 1  # Log every step
+args.warmup_steps = 2  # Gradual warmup
+args.logging_steps = 1  # Log every step to track progress
 # Disable vLLM weight syncing temporarily to test training
-args.num_batches_ahead = 0  # Synchronous generation to avoid vLLM sync issues
-args.max_train_steps = 10
+args.num_batches_ahead = 1  # Synchronous generation to avoid vLLM sync issues
+args.gradient_clip_norm = 1.0 # Add gradient clipping
+
 
 trainer = vf.GRPOTrainer(
     env=vf_env,

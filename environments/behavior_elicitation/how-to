@@ -12,9 +12,25 @@ source .venv/bin/activate
 uv pip install -e ".[all]"
 uv pip install flash-attn --no-build-isolation
 
+# ON ONE COMPUTER
 CUDA_VISIBLE_DEVICES=0 vf-vllm --model openai/gpt-oss-20b \
     --port 8000 \
     --enforce-eager \
     --disable-log-requests \
     --max-model-len 4096 \
     --gpu-memory-utilization 0.9
+
+# ...
+
+# ON ANOTHER COMPUTER
+CUDA_VISIBLE_DEVICES=0 vf-vllm --model willcb/Qwen3-8B \
+    --port 8000 \
+    --enforce-eager \
+    --disable-log-requests \
+    --max-model-len 4096 \
+    --gpu-memory-utilization 0.85
+
+# NEW TERMINAL
+cd verifiers && source .venv/bin/activate
+uv pip install tenacity
+CUDA_VISIBLE_DEVICES=1 python examples/grpo/train_prbo_behavior_elicitation.py

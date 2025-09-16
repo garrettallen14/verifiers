@@ -535,12 +535,9 @@ class GRPOTrainer(Trainer):
         self.vllm_client = VLLMClient(
             host=host, port=port, connection_timeout=args.vllm_server_timeout
         )
-        # TEMPORARY PATCH: Skip vLLM communicator initialization to avoid NCCL error
-        # This allows trainer to start without distributed communication setup
-        self.logger.info("Skipping vLLM communicator initialization (disabled for local training)")
-        # Original code (disabled):
         # Only initialize communicator on the main process
         # Other processes will only use the client for non-NCCL operations
+        # TEMPORARILY DISABLED: Skip NCCL communicator to test HTTP-only weight updates
         # if self.accelerator.is_main_process:
         #     self.vllm_client.init_communicator()
 
@@ -751,12 +748,6 @@ class GRPOTrainer(Trainer):
         return torch.cat(all_logps, dim=0)
 
     def _move_model_to_vllm(self):
-        # TEMPORARY PATCH: Disable vLLM weight syncing to avoid pynccl_comm error
-        # This allows training to proceed locally without distributed communication issues
-        self.logger.info("Skipping vLLM weight sync (disabled for local training)")
-        return
-        
-        # Original code (disabled):
         # For DeepSpeed ZeRO-3 we need to gather all parameters before operations
         deepspeed_plugin = self.accelerator.state.deepspeed_plugin
         zero_stage_3 = deepspeed_plugin is not None and deepspeed_plugin.zero_stage == 3
@@ -1171,6 +1162,15 @@ class GRPOTrainer(Trainer):
         rewards: torch.Tensor,
     ) -> torch.Tensor:
         """Compute advantages from rewards with normalization using full batch statistics."""
+        # Add defensive handling for tensor shape mismatches
+        expected_size = (rewards.size(0) // self.num_generations) * self.num_generations
+        if rewards.size(0) != expected_size:
+            self.logger.warning(
+                f"Reward tensor size mismatch: got {rewards.size(0)}, expected multiple of {self.num_generations}. "
+                f"Truncating to {expected_size} rewards."
+            )
+            rewards = rewards[:expected_size]
+        
         # Always use full batch statistics
         mean_grouped = rewards.view(-1, self.num_generations).mean(dim=1)
         std_grouped = rewards.view(-1, self.num_generations).std(dim=1)
@@ -1517,6 +1517,15 @@ class GRPOTrainer(Trainer):
         This handles reward statistics and per-reward-function metrics using the full batch data.
         """
         # Log reward statistics using full batch
+        # Add defensive handling for tensor shape mismatches (same as _compute_advantages)
+        expected_size = (all_rewards.size(0) // self.num_generations) * self.num_generations
+        if all_rewards.size(0) != expected_size:
+            self.logger.warning(
+                f"Reward tensor size mismatch in logging: got {all_rewards.size(0)}, expected multiple of {self.num_generations}. "
+                f"Truncating to {expected_size} rewards."
+            )
+            all_rewards = all_rewards[:expected_size]
+        
         mean_rewards = all_rewards.view(-1, self.num_generations).mean(dim=1)
         std_rewards = all_rewards.view(-1, self.num_generations).std(dim=1)
         self._metrics[mode]["reward"].append(mean_rewards.mean().item())

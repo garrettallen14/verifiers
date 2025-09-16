@@ -217,8 +217,9 @@ class VLLMClient(AsyncOpenAI):
             raise Exception(f"Request failed: {response.status_code}, {response.text}")
 
         # Broadcast the weights to the other processes
-        self.pynccl_comm.broadcast(weights, src=self.rank)
-        self.pynccl_comm.group.barrier()
+        # TEMPORARILY DISABLED: Skip NCCL broadcast for HTTP-only weight updates
+        # self.pynccl_comm.broadcast(weights, src=self.rank)
+        # self.pynccl_comm.group.barrier()
 
     def reset_prefix_cache(self):
         """
