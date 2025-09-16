@@ -31,7 +31,7 @@ import sys
 import os
 
 # Add the behavior elicitation environment to the path
-sys.path.append('/workspace/grpo-practice/verifiers/environments/behavior_elicitation')
+sys.path.append('/workspace/verifiers/environments/behavior_elicitation')
 
 from behavior_elicitation import ModelConfig, load_environment
 
