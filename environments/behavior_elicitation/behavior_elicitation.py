@@ -170,11 +170,11 @@ class PRBORubric(Rubric):
 
     async def prbo_reward_function(self, prompt, completion, answer, info, **kwargs):
         try:
-            # Debug logging to understand parameter structure
-            self.logger.info(f"PRBO reward function called with:")
-            self.logger.info(f"  prompt type: {type(prompt)}, prompt: {prompt}")
-            self.logger.info(f"  completion type: {type(completion)}, completion: {completion}")
-            self.logger.info(f"  info: {info}")
+            # Debug logging to understand parameter structure (with None safety)
+            self.logger.info("PRBO reward function called with:")
+            self.logger.info(f"  prompt type: {type(prompt)}, prompt: {prompt if prompt is not None else 'None'}")
+            self.logger.info(f"  completion type: {type(completion)}, completion: {completion if completion is not None else 'None'}")
+            self.logger.info(f"  info: {info if info is not None else 'None'}")
             
             # Extract behavior from info
             behavior = ""
